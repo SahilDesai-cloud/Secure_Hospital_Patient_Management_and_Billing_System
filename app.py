@@ -6,7 +6,7 @@ from datetime import timedelta
 from decimal import Decimal, InvalidOperation
 from logging.handlers import RotatingFileHandler
 
-from flask import Flask, render_template, request, redirect, url_for, session, abort
+from flask import Flask, render_template, request, redirect, url_for, session, abort, flash
 
 from config import get_db_conn
 from hospital_db_setup import encrypt_data, decrypt_data
@@ -33,6 +33,39 @@ app.logger.addHandler(handler)
 app.logger.setLevel(logging.INFO)
 
 EMAIL_REGEX = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
+
+
+def get_patient_record(patient_id: int):
+    """Fetch and decrypt a single patient with optional sensitive fields."""
+    conn = cur = None
+    try:
+        conn = get_db_conn()
+        cur = conn.cursor(dictionary=True)
+        cur.execute(
+            """
+            SELECT p.patient_id, p.first_name, p.last_name, p.dob, p.gender,
+                   p.phone_number, p.email, ps.mrn, ps.home_address, ps.insurance_policy, ps.card_last4
+            FROM Patient p
+            LEFT JOIN Patient_Sensitive ps ON ps.patient_id = p.patient_id
+            WHERE p.patient_id = %s
+            """,
+            (patient_id,),
+        )
+        row = cur.fetchone()
+        if not row:
+            return None
+        # Decrypt fields that are stored encrypted
+        row["email"] = decrypt_data(row["email"]) if row.get("email") else ""
+        row["phone_number"] = decrypt_data(row["phone_number"]) if row.get("phone_number") else ""
+        row["mrn"] = decrypt_data(row["mrn"]) if row.get("mrn") else ""
+        row["home_address"] = decrypt_data(row["home_address"]) if row.get("home_address") else ""
+        row["insurance_policy"] = decrypt_data(row["insurance_policy"]) if row.get("insurance_policy") else ""
+        return row
+    finally:
+        if cur:
+            cur.close()
+        if conn:
+            conn.close()
 
 
 # Context processor to make is_logged_in available to all templates
@@ -283,6 +316,81 @@ def patient_form():
     return render_template("patient_form.html")
 
 
+@app.route("/patient/<int:patient_id>")
+def patient_detail(patient_id: int):
+    if not session.get("logged_in"):
+        return redirect(url_for("login"))
+    record = get_patient_record(patient_id)
+    if not record:
+        abort(404)
+    return render_template("patient_detail.html", patient=record)
+
+
+@app.route("/patient/<int:patient_id>/edit", methods=["GET", "POST"])
+def patient_edit(patient_id: int):
+    if not session.get("logged_in"):
+        return redirect(url_for("login"))
+    record = get_patient_record(patient_id)
+    if not record:
+        abort(404)
+
+    if request.method == "POST":
+        conn = cur = None
+        try:
+            full_name = request.form.get("full_name", "").strip()
+            email = request.form.get("email", "").strip()
+            phone = request.form.get("phone", "").strip()
+            address = request.form.get("address", "").strip()
+            mrn = request.form.get("mrn", "").strip()
+            insurance = request.form.get("insurance", "").strip()
+
+            if len(full_name) < 2 or not EMAIL_REGEX.match(email):
+                flash("Please provide valid name and email.", "error")
+                return render_template("patient_edit.html", patient=record), 400
+
+            sanitized_phone = re.sub(r"\\D", "", phone)
+            name_parts = full_name.split(maxsplit=1)
+            first_name = name_parts[0] if name_parts else ""
+            last_name = name_parts[1] if len(name_parts) > 1 else ""
+
+            conn = get_db_conn()
+            cur = conn.cursor()
+            cur.execute(
+                """
+                UPDATE Patient
+                SET first_name=%s, last_name=%s, phone_number=%s, email=%s
+                WHERE patient_id=%s
+                """,
+                (first_name, last_name, encrypt_data(sanitized_phone), encrypt_data(email), patient_id),
+            )
+            cur.execute(
+                """
+                UPDATE Patient_Sensitive
+                SET mrn=%s, home_address=%s, insurance_policy=%s
+                WHERE patient_id=%s
+                """,
+                (encrypt_data(mrn), encrypt_data(address), encrypt_data(insurance), patient_id),
+            )
+            conn.commit()
+            flash("Patient updated.", "success")
+            return redirect(url_for("patient_detail", patient_id=patient_id))
+        except Exception as e:
+            if conn:
+                conn.rollback()
+            print("Edit error:", repr(e))
+            flash("Unable to update patient.", "error")
+            return render_template("patient_edit.html", patient=record), 500
+        finally:
+            if cur:
+                cur.close()
+            if conn:
+                conn.close()
+
+    # Prefill with decrypted values
+    record["full_name"] = f"{record.get('first_name','')} {record.get('last_name','')}".strip()
+    return render_template("patient_edit.html", patient=record)
+
+
 @app.route("/staff", methods=["GET", "POST"])
 def staff_form():
     template_kwargs = dict(
@@ -348,9 +456,6 @@ def staff_form():
 
 @app.route("/appointment", methods=["GET", "POST"])
 def appointment_form():
-    if not session.get('logged_in', False):
-        return redirect(url_for("login"))
-    
     if request.method == "POST":
         conn = cur = None
         try:
@@ -397,9 +502,6 @@ def appointment_form():
 
 @app.route("/medical-record", methods=["GET", "POST"])
 def medical_record_form():
-    if not session.get('logged_in', False):
-        return redirect(url_for("login"))
-    
     if request.method == "POST":
         conn = cur = None
         try:
@@ -443,9 +545,6 @@ def medical_record_form():
 
 @app.route("/billing", methods=["GET", "POST"])
 def billing_form():
-    if not session.get('logged_in', False):
-        return redirect(url_for("login"))
-    
     if request.method == "POST":
         conn = cur = None
         try:
@@ -492,9 +591,6 @@ def billing_form():
 
 @app.route("/payment", methods=["GET", "POST"])
 def payment_form():
-    if not session.get('logged_in', False):
-        return redirect(url_for("login"))
-    
     if request.method == "POST":
         conn = cur = None
         try:

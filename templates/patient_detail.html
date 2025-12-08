@@ -1,0 +1,34 @@
+{% extends "base.html" %}
+
+{% block title %}Patient Detail{% endblock %}
+
+{% block content %}
+<a href="/" class="back-link">← Back to Home</a>
+<div class="menu-card tilt">
+    <div class="icon">👤</div>
+    <h3>{{ patient.first_name }} {{ patient.last_name }}</h3>
+    <p class="subtitle">Patient ID: {{ patient.patient_id }}</p>
+    <div class="badge-row" style="margin-top:10px;">
+        <span class="pill">DOB: {{ patient.dob }}</span>
+        <span class="pill">Gender: {{ patient.gender }}</span>
+        <span class="pill">MRN: {{ patient.mrn }}</span>
+    </div>
+</div>
+
+<div class="menu-card tilt" style="margin-top:16px;">
+    <h3>Contact</h3>
+    <p>Email: {{ patient.email }}</p>
+    <p>Phone: {{ patient.phone_number }}</p>
+    <p>Address: {{ patient.home_address }}</p>
+</div>
+
+<div class="menu-card tilt" style="margin-top:16px;">
+    <h3>Insurance / Payment</h3>
+    <p>Insurance Policy: {{ patient.insurance_policy }}</p>
+    <p>Card Last4: {{ patient.card_last4 }}</p>
+</div>
+
+<div style="margin-top:20px;">
+    <a href="{{ url_for('patient_edit', patient_id=patient.patient_id) }}" class="btn tilt">Edit Patient</a>
+</div>
+{% endblock %}
