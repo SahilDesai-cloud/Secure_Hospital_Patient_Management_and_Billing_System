@@ -10,6 +10,7 @@ from flask import Flask, render_template, request, redirect, url_for, session, a
 
 from config import get_db_conn
 from hospital_db_setup import encrypt_data, decrypt_data
+# Project authors: Suksham Fulzele (ID: 989686048), Sahil Shekhar Desai (ID: 989485311), Sruthi Satyavarapu (ID: 989492060), Sriyuktha Sanagavarapu (ID: 989483329)
 
 app = Flask(__name__)
 app.secret_key = secrets.token_hex(16)  # For session management
