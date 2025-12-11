@@ -11,7 +11,8 @@ A secure web application for managing hospital patients, staff, appointments, me
 ## Installation
 
 1. **Clone or download this repository**
-
+      https://github.com/sruthisDev/Secure_Hospital_Patient_Management_and_Billing_System
+      
 2. **Install Python dependencies:**
    ```bash
    pip install -r requirements.txt
