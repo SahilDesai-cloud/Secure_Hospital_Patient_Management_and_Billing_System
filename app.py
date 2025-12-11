@@ -37,6 +37,113 @@ app.logger.setLevel(logging.INFO)
 EMAIL_REGEX = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
 
 
+def is_sensitive_column(column_name):
+    """Check if a column name indicates sensitive data"""
+    if not column_name:
+        return False
+    column_lower = column_name.lower()
+    sensitive_keywords = [
+        'ssn', 'social_security', 'phone', 'email', 'card', 'account', 'routing',
+        'mrn', 'medical_record', 'insurance', 'address', 'password', 'pwd',
+        'state_id', 'drivers_license', 'license'
+    ]
+    return any(keyword in column_lower for keyword in sensitive_keywords)
+
+
+def mask_sensitive_data(value, column_name):
+    """Mask sensitive data based on column name and value type"""
+    if value is None:
+        return None
+    
+    # Convert to string for processing
+    value_str = str(value).strip()
+    if not value_str or value_str in ['NULL', 'None', '']:
+        return value_str
+    
+    column_lower = column_name.lower()
+    
+    # SSN masking: ***-**-1234
+    if 'ssn' in column_lower or 'social_security' in column_lower:
+        if len(value_str) >= 4:
+            # Remove any dashes/spaces and get last 4 digits
+            digits = re.sub(r'[^\d]', '', value_str)
+            if len(digits) >= 4:
+                return f"***-**-{digits[-4:]}"
+        return "***-**-****"
+    
+    # Phone number masking: (***) ***-1234
+    if 'phone' in column_lower:
+        digits = re.sub(r'[^\d]', '', value_str)
+        if len(digits) >= 4:
+            return f"(***) ***-{digits[-4:]}"
+        return "(***) ***-****"
+    
+    # Email masking: j***@example.com
+    if 'email' in column_lower:
+        if '@' in value_str:
+            parts = value_str.split('@')
+            if len(parts) == 2:
+                username = parts[0]
+                domain = parts[1]
+                if len(username) > 0:
+                    masked_username = username[0] + '*' * min(3, len(username) - 1)
+                    return f"{masked_username}@{domain}"
+        return "***@***.***"
+    
+    # Credit card masking: ****-****-****-1234
+    if 'card' in column_lower and ('number' in column_lower or 'num' in column_lower):
+        digits = re.sub(r'[^\d]', '', value_str)
+        if len(digits) >= 4:
+            return f"****-****-****-{digits[-4:]}"
+        return "****-****-****-****"
+    
+    # Account number masking
+    if 'account' in column_lower and 'number' in column_lower:
+        digits = re.sub(r'[^\d]', '', value_str)
+        if len(digits) >= 4:
+            return f"****{digits[-4:]}"
+        return "****"
+    
+    # Routing number masking
+    if 'routing' in column_lower:
+        return "****"
+    
+    # MRN (Medical Record Number) masking: MRN-****1234
+    if 'mrn' in column_lower or 'medical_record' in column_lower:
+        digits = re.sub(r'[^\d]', '', value_str)
+        if len(digits) >= 4:
+            return f"MRN-****{digits[-4:]}"
+        return "MRN-****"
+    
+    # Insurance policy masking
+    if 'insurance' in column_lower and ('policy' in column_lower or 'number' in column_lower):
+        digits = re.sub(r'[^\d]', '', value_str)
+        if len(digits) >= 4:
+            return f"POL-****{digits[-4:]}"
+        return "POL-****"
+    
+    # Address masking: Show only city/state
+    if 'address' in column_lower or 'home_address' in column_lower:
+        # Try to extract city/state if present, otherwise mask completely
+        parts = value_str.split(',')
+        if len(parts) >= 2:
+            return f"***, {parts[-1].strip()}"
+        return "*** [Address Hidden]"
+    
+    # Password masking (should never be shown, but just in case)
+    if 'password' in column_lower or 'pwd' in column_lower:
+        return "********"
+    
+    # State ID / Driver's License masking
+    if 'state_id' in column_lower or 'drivers_license' in column_lower or 'license' in column_lower:
+        if len(value_str) >= 4:
+            return f"***{value_str[-4:]}"
+        return "***"
+    
+    # Default: return as is if not sensitive
+    return value_str
+
+
 def get_patient_record(patient_id: int):
     """Fetch and decrypt a single patient with optional sensitive fields."""
     conn = cur = None
@@ -142,6 +249,8 @@ def sanitize_card_number(raw_card: str) -> str:
 
 
 app.jinja_env.globals["csrf_token"] = generate_csrf_token
+app.jinja_env.filters["mask_sensitive"] = mask_sensitive_data
+app.jinja_env.filters["is_sensitive"] = is_sensitive_column
 
 
 @app.before_request

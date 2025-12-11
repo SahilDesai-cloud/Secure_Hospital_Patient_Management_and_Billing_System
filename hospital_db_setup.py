@@ -1,4 +1,5 @@
 import os
+from datetime import datetime, timedelta
 import mysql.connector
 from mysql.connector import errorcode
 from crypto_utils import encrypt_value, decrypt_value
@@ -376,6 +377,11 @@ def insert_patient_data(db_connection, patient_data):
         VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
     """
     
+    # Ensure primary_doctor_id is integer or None, never boolean
+    primary_doctor_id = patient_data.get('primary_doctor_id', None)
+    if primary_doctor_id is not None:
+        primary_doctor_id = int(primary_doctor_id)
+    
     data = (
         patient_data['first_name'],
         patient_data['last_name'],
@@ -385,13 +391,13 @@ def insert_patient_data(db_connection, patient_data):
         encrypted_email,
         encrypted_ssn,
         encrypted_state_id,
-        patient_data.get('primary_doctor_id', None)
+        primary_doctor_id
     )
     
     # Execute the query and commit the changes
     cursor.execute(query, data)
     db_connection.commit()
-    patient_id = cursor.lastrowid
+    patient_id = int(cursor.lastrowid)  # Ensure integer, not boolean
     cursor.close()
     
     print(f"Patient data inserted successfully! Patient ID: {patient_id}")
@@ -453,56 +459,244 @@ def insert_staff_data(db_connection, staff_data):
     
     cursor.execute(query, data)
     db_connection.commit()
-    staff_id = cursor.lastrowid
+    staff_id = int(cursor.lastrowid)  # Ensure integer, not boolean
     cursor.close()
     
     print(f"Staff data inserted successfully! Staff ID: {staff_id}")
     return staff_id
 
+def insert_comprehensive_dummy_data():
+    """Insert comprehensive dummy data for all tables with correct information"""
+    db_connection = connect_to_db()
+    db_connection.database = "secure_hospital_db"
+    cursor = db_connection.cursor()
+    
+    try:
+        # Check if dummy data already exists
+        cursor.execute("SELECT COUNT(*) FROM Staff")
+        staff_count = cursor.fetchone()[0]
+        cursor.execute("SELECT COUNT(*) FROM Patient")
+        patient_count = cursor.fetchone()[0]
+        
+        if staff_count > 0 and patient_count > 0:
+            print(f"Database already has {staff_count} staff and {patient_count} patients. Skipping dummy data insertion.")
+            cursor.close()
+            db_connection.close()
+            return
+        
+        print("\nInserting comprehensive dummy data for all tables...")
+        
+        # Insert multiple staff members (excluding Dr. Jane Smith - Staff ID 1)
+        staff_members = [
+            {'first_name': 'Dr. Michael', 'last_name': 'Johnson', 'role': 'Doctor', 'email': 'michael.johnson@hospital.com', 'phone_number': '555-0101'},
+            {'first_name': 'Dr. Sarah', 'last_name': 'Williams', 'role': 'Doctor', 'email': 'sarah.williams@hospital.com', 'phone_number': '555-0102'},
+            {'first_name': 'Dr. Robert', 'last_name': 'Brown', 'role': 'Doctor', 'email': 'robert.brown@hospital.com', 'phone_number': '555-0103'},
+            {'first_name': 'Nurse', 'last_name': 'Emily', 'role': 'Nurse', 'email': 'emily.nurse@hospital.com', 'phone_number': '555-0200'},
+            {'first_name': 'Nurse', 'last_name': 'James', 'role': 'Nurse', 'email': 'james.nurse@hospital.com', 'phone_number': '555-0201'},
+        ]
+        
+        staff_ids = []
+        for staff_data in staff_members:
+            staff_id = insert_staff_data(db_connection, staff_data)
+            staff_ids.append(staff_id)
+        
+        # Insert multiple patients with complete information (excluding John Doe - Patient ID 1 and Jane Smith patient)
+        # Ensure all staff_ids are integers to prevent boolean values in ID columns
+        patients = [
+            {
+                'first_name': 'Michael', 'last_name': 'Brown', 'dob': '1992-08-10', 'gender': 'Male',
+                'phone_number': '555-345-6789', 'email': 'michael.brown@email.com',
+                'ssn': '345-67-8901', 'state_id': 'TX4567890', 'primary_doctor_id': int(staff_ids[0])
+            },
+            {
+                'first_name': 'Emily', 'last_name': 'Davis', 'dob': '1988-12-05', 'gender': 'Female',
+                'phone_number': '555-456-7890', 'email': 'emily.davis@email.com',
+                'ssn': '456-78-9012', 'state_id': 'FL7890123', 'primary_doctor_id': int(staff_ids[1])
+            },
+            {
+                'first_name': 'David', 'last_name': 'Wilson', 'dob': '1995-03-25', 'gender': 'Male',
+                'phone_number': '555-567-8901', 'email': 'david.wilson@email.com',
+                'ssn': '567-89-0123', 'state_id': 'IL2345678', 'primary_doctor_id': int(staff_ids[0])
+            },
+            {
+                'first_name': 'Sarah', 'last_name': 'Miller', 'dob': '1991-07-18', 'gender': 'Female',
+                'phone_number': '555-678-9012', 'email': 'sarah.miller@email.com',
+                'ssn': '678-90-1234', 'state_id': 'WA3456789', 'primary_doctor_id': int(staff_ids[2])
+            },
+        ]
+        
+        patient_ids = []
+        for patient_data in patients:
+            patient_id = insert_patient_data(db_connection, patient_data)
+            patient_ids.append(patient_id)
+        
+        # Insert Patient_Sensitive data (excluding Patient ID 1 - John Doe and Jane Smith)
+        sensitive_data_list = [
+            {'patient_id': patient_ids[0], 'mrn': 'MRN003456', 'home_address': '789 Pine Road, Houston, TX 77001', 'insurance_policy': 'INS-345678901', 'card_last4': '3456'},
+            {'patient_id': patient_ids[1], 'mrn': 'MRN004567', 'home_address': '321 Elm Street, Miami, FL 33101', 'insurance_policy': 'INS-456789012', 'card_last4': '4567'},
+            {'patient_id': patient_ids[2], 'mrn': 'MRN005678', 'home_address': '654 Maple Drive, Chicago, IL 60601', 'insurance_policy': 'INS-567890123', 'card_last4': '5678'},
+            {'patient_id': patient_ids[3], 'mrn': 'MRN006789', 'home_address': '987 Cedar Lane, Seattle, WA 98101', 'insurance_policy': 'INS-678901234', 'card_last4': '6789'},
+        ]
+        
+        for sensitive_data in sensitive_data_list:
+            # Ensure patient_id is integer, not boolean
+            patient_id_val = int(sensitive_data['patient_id']) if sensitive_data['patient_id'] is not None else None
+            cursor.execute("""
+                INSERT INTO Patient_Sensitive (patient_id, mrn, home_address, insurance_policy, card_last4)
+                VALUES (%s, %s, %s, %s, %s)
+            """, (
+                patient_id_val,
+                encrypt_data(sensitive_data['mrn']),
+                encrypt_data(sensitive_data['home_address']),
+                encrypt_data(sensitive_data['insurance_policy']),
+                sensitive_data['card_last4']
+            ))
+        
+        # Insert Appointments (excluding appointments with Patient ID 1 and Staff ID 1)
+        appointments = [
+            {'patient_id': patient_ids[0], 'doctor_id': staff_ids[0], 'appointment_date': datetime.now() + timedelta(days=3, hours=9), 'status': 'Scheduled'},
+            {'patient_id': patient_ids[1], 'doctor_id': staff_ids[1], 'appointment_date': datetime.now() - timedelta(days=2, hours=15), 'status': 'Completed'},
+            {'patient_id': patient_ids[2], 'doctor_id': staff_ids[0], 'appointment_date': datetime.now() + timedelta(days=4, hours=13), 'status': 'Scheduled'},
+            {'patient_id': patient_ids[3], 'doctor_id': staff_ids[1], 'appointment_date': datetime.now() - timedelta(days=1, hours=10), 'status': 'Completed'},
+        ]
+        
+        for apt in appointments:
+            cursor.execute("""
+                INSERT INTO Appointment (patient_id, doctor_id, appointment_date, status)
+                VALUES (%s, %s, %s, %s)
+            """, (int(apt['patient_id']), int(apt['doctor_id']), apt['appointment_date'], apt['status']))
+        
+        # Insert Medical Records (excluding records for Patient ID 1 and Staff ID 1)
+        medical_records = [
+            {'patient_id': patient_ids[0], 'doctor_id': staff_ids[0], 'diagnosis': 'Common Cold', 'treatment_plan': 'Rest, fluids, over-the-counter cold medication. Return if symptoms persist beyond 7 days.'},
+            {'patient_id': patient_ids[1], 'doctor_id': staff_ids[1], 'diagnosis': 'Migraine', 'treatment_plan': 'Sumatriptan 50mg as needed for acute attacks. Avoid known triggers. Stress management recommended.'},
+            {'patient_id': patient_ids[2], 'doctor_id': staff_ids[0], 'diagnosis': 'Asthma', 'treatment_plan': 'Albuterol inhaler 2 puffs every 4-6 hours as needed. Avoid allergens. Annual flu shot recommended.'},
+            {'patient_id': patient_ids[3], 'doctor_id': staff_ids[2], 'diagnosis': 'Seasonal Allergies', 'treatment_plan': 'Loratadine 10mg daily. Nasal spray as needed. Allergy testing recommended if symptoms persist.'},
+        ]
+        
+        for record in medical_records:
+            cursor.execute("""
+                INSERT INTO Medical_Record (patient_id, doctor_id, diagnosis, treatment_plan)
+                VALUES (%s, %s, %s, %s)
+            """, (
+                int(record['patient_id']),  # Ensure integer
+                int(record['doctor_id']),   # Ensure integer
+                encrypt_data(record['diagnosis']),
+                encrypt_data(record['treatment_plan'])
+            ))
+        
+        # Insert Billing records (excluding Patient ID 1)
+        billing_records = [
+            {'patient_id': patient_ids[0], 'total_amount': 300.00, 'paid_amount': 300.00, 'status': 'Paid', 'payment_due_date': datetime.now() - timedelta(days=5)},
+            {'patient_id': patient_ids[1], 'total_amount': 1200.00, 'paid_amount': 0.00, 'status': 'Pending', 'payment_due_date': datetime.now() + timedelta(days=45)},
+            {'patient_id': patient_ids[2], 'total_amount': 450.00, 'paid_amount': 450.00, 'status': 'Paid', 'payment_due_date': datetime.now() - timedelta(days=10)},
+            {'patient_id': patient_ids[3], 'total_amount': 850.00, 'paid_amount': 425.00, 'status': 'Partial', 'payment_due_date': datetime.now() + timedelta(days=15)},
+        ]
+        
+        billing_ids = []
+        for billing in billing_records:
+            cursor.execute("""
+                INSERT INTO Billing (patient_id, total_amount, paid_amount, status, payment_due_date)
+                VALUES (%s, %s, %s, %s, %s)
+            """, (
+                int(billing['patient_id']),  # Ensure integer
+                billing['total_amount'],
+                billing['paid_amount'],
+                billing['status'],
+                billing['payment_due_date']
+            ))
+            billing_ids.append(int(cursor.lastrowid))  # Ensure integer, not boolean
+        
+        # Insert Payment Methods (excluding Patient ID 1)
+        payment_methods = [
+            {'patient_id': patient_ids[0], 'type': 'BANK', 'last4': '3456', 'data_enc': encrypt_data('{"account_number":"****3456","routing":"123456789","account_type":"checking"}'), 'is_default': True},
+            {'patient_id': patient_ids[1], 'type': 'CARD', 'last4': '4567', 'data_enc': encrypt_data('{"card_number":"****4567","expiry":"09/25","cvv":"***","name":"Emily Davis"}'), 'is_default': True},
+            {'patient_id': patient_ids[2], 'type': 'BANK', 'last4': '5678', 'data_enc': encrypt_data('{"account_number":"****5678","routing":"987654321","account_type":"savings"}'), 'is_default': True},
+            {'patient_id': patient_ids[3], 'type': 'CARD', 'last4': '6789', 'data_enc': encrypt_data('{"card_number":"****6789","expiry":"03/26","cvv":"***","name":"Sarah Miller"}'), 'is_default': True},
+        ]
+        
+        payment_method_ids = []
+        for pm in payment_methods:
+            cursor.execute("""
+                INSERT INTO Payment_Methods (patient_id, type, last4, data_enc, is_default)
+                VALUES (%s, %s, %s, %s, %s)
+            """, (
+                int(pm['patient_id']),  # Ensure integer
+                pm['type'],
+                pm['last4'],
+                pm['data_enc'],
+                pm['is_default']
+            ))
+            payment_method_ids.append(int(cursor.lastrowid))  # Ensure integer, not boolean
+        
+        # Insert Payment Transactions (excluding Patient ID 1)
+        payment_transactions = [
+            {'billing_id': billing_ids[0], 'patient_id': patient_ids[0], 'payment_method_id': payment_method_ids[0], 'amount': 300.00, 'status': 'Posted', 'note': 'Full payment for treatment'},
+            {'billing_id': billing_ids[2], 'patient_id': patient_ids[2], 'payment_method_id': payment_method_ids[2], 'amount': 450.00, 'status': 'Posted', 'note': 'Full payment completed'},
+            {'billing_id': billing_ids[3], 'patient_id': patient_ids[3], 'payment_method_id': payment_method_ids[3], 'amount': 425.00, 'status': 'Posted', 'note': 'Partial payment - balance due'},
+        ]
+        
+        for pt in payment_transactions:
+            cursor.execute("""
+                INSERT INTO Payment_Transactions (billing_id, patient_id, payment_method_id, amount, status, note)
+                VALUES (%s, %s, %s, %s, %s, %s)
+            """, (
+                int(pt['billing_id']),        # Ensure integer
+                int(pt['patient_id']),        # Ensure integer
+                int(pt['payment_method_id']),  # Ensure integer
+                pt['amount'],
+                pt['status'],
+                pt['note']
+            ))
+        
+        # Link Users to Staff and Patients (link to first available staff/patient, not Staff ID 1 or Patient ID 1)
+        if len(staff_ids) > 0 and len(patient_ids) > 0:
+            cursor.execute("UPDATE Users SET reference_id = %s WHERE email = 'staff@hospital.com'", (int(staff_ids[0]),))
+            cursor.execute("UPDATE Users SET reference_id = %s WHERE email = 'patient@hospital.com'", (int(patient_ids[0]),))
+        
+        db_connection.commit()
+        print(f"\n✓ Successfully inserted dummy data:")
+        print(f"  - {len(staff_members)} staff members")
+        print(f"  - {len(patients)} patients")
+        print(f"  - {len(sensitive_data_list)} patient sensitive records")
+        print(f"  - {len(appointments)} appointments")
+        print(f"  - {len(medical_records)} medical records")
+        print(f"  - {len(billing_records)} billing records")
+        print(f"  - {len(payment_methods)} payment methods")
+        print(f"  - {len(payment_transactions)} payment transactions")
+        print("  All sensitive data encrypted before storage.")
+        
+    except Exception as e:
+        print(f"Error inserting dummy data: {e}")
+        db_connection.rollback()
+        raise
+    finally:
+        cursor.close()
+        db_connection.close()
+
+
 def main():
     # Step 1: Create Database and Tables
+    print("="*60)
+    print("Creating database and tables...")
+    print("="*60)
     create_database_and_tables()
     
     # Step 2: Create initial users
+    print("\n" + "="*60)
+    print("Creating initial users...")
+    print("="*60)
     create_initial_users()
     
-    # Step 3: Connect to the database
-    db_connection = connect_to_db()
-    db_connection.database = "secure_hospital_db"
+    # Step 3: Insert comprehensive dummy data
+    print("\n" + "="*60)
+    print("Inserting comprehensive dummy data...")
+    print("="*60)
+    insert_comprehensive_dummy_data()
     
-    # Step 3: Insert staff data first (required for foreign key)
-    staff_data = {
-        'first_name': 'Dr. Jane',
-        'last_name': 'Smith',
-        'role': 'Doctor',
-        'email': 'jane.smith@hospital.com',
-        'phone_number': '555-0100'
-    }
-    staff_id = insert_staff_data(db_connection, staff_data)
-    
-    # Step 4: Insert patient data
-    patient_data = {
-        'first_name': 'John',
-        'last_name': 'Doe',
-        'dob': '1990-01-01',
-        'gender': 'Male',
-        'phone_number': '123-456-7890',
-        'email': 'john.doe@example.com',
-        'ssn': '123-45-6789',
-        'state_id': 'CA1234567',
-        'primary_doctor_id': staff_id
-    }
-    patient_id = insert_patient_data(db_connection, patient_data)
-    
-    # Step 5: Retrieve and display patient data
-    retrieved_data = get_patient_data(db_connection, patient_id)
-    if retrieved_data:
-        print("\nRetrieved Patient Data:")
-        print(f"Name: {retrieved_data['first_name']} {retrieved_data['last_name']}")
-        print(f"Email: {retrieved_data['email']}")
-        print(f"Phone: {retrieved_data['phone_number']}")
-    
-    db_connection.close()
+    print("\n" + "="*60)
+    print("Database setup completed successfully!")
+    print("="*60)
 
 if __name__ == "__main__":
     main()

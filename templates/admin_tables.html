@@ -2,6 +2,46 @@
 
 {% block title %}Database Tables - Admin View{% endblock %}
 
+{% block extra_css %}
+<style>
+    .table-scroll-container {
+        width: 100%;
+        overflow-x: auto;
+        overflow-y: visible;
+        -webkit-overflow-scrolling: touch;
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        position: relative;
+    }
+    .table-scroll-container table {
+        border-collapse: collapse;
+        background: rgba(255,255,255,0.01);
+        table-layout: auto;
+        width: max-content;
+        min-width: 100%;
+    }
+    .table-scroll-container th,
+    .table-scroll-container td {
+        min-width: 180px;
+        white-space: nowrap;
+    }
+    .table-scroll-container::-webkit-scrollbar {
+        height: 12px;
+    }
+    .table-scroll-container::-webkit-scrollbar-track {
+        background: rgba(255,255,255,0.03);
+        border-radius: 6px;
+    }
+    .table-scroll-container::-webkit-scrollbar-thumb {
+        background: rgba(255,255,255,0.15);
+        border-radius: 6px;
+    }
+    .table-scroll-container::-webkit-scrollbar-thumb:hover {
+        background: rgba(255,255,255,0.25);
+    }
+</style>
+{% endblock %}
+
 {% block content %}
 <a href="{{ url_for('dashboard') }}" class="back-link">← Back to Dashboard</a>
 <h1>Database Tables Viewer</h1>
@@ -26,7 +66,7 @@
     </div>
     
     <!-- Table Content -->
-    <div>
+    <div style="min-width: 0; overflow: hidden;">
         {% if selected_table %}
         <div style="background: rgba(255,255,255,0.02); border: 1px solid var(--border); border-radius: 12px; padding: 20px;">
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
@@ -54,13 +94,16 @@
             {% endif %}
             
             {% if table_data %}
-            <div style="overflow-x: auto;">
-                <table style="width: 100%; border-collapse: collapse; background: rgba(255,255,255,0.01); border-radius: 8px; overflow: hidden;">
+            <div class="table-scroll-container">
+                <table>
                     <thead>
                         <tr style="background: rgba(255,255,255,0.05); border-bottom: 2px solid var(--border);">
                             {% for col in columns %}
-                            <th style="padding: 12px; text-align: left; font-weight: 600; font-size: 13px; color: var(--text);">
+                            <th style="padding: 12px 16px; text-align: left; font-weight: 600; font-size: 13px; color: var(--text);">
                                 {{ col.COLUMN_NAME }}
+                                {% if col.COLUMN_NAME|is_sensitive %}
+                                    <span style="color: var(--accent-gold); font-size: 11px; margin-left: 4px;" title="Sensitive column - data is masked">🔒</span>
+                                {% endif %}
                             </th>
                             {% endfor %}
                         </tr>
@@ -71,17 +114,25 @@
                             onmouseover="this.style.background='rgba(255,255,255,0.03)'" 
                             onmouseout="this.style.background='transparent'">
                             {% for col in columns %}
-                            <td style="padding: 12px; font-size: 13px; color: var(--muted); max-width: 300px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
+                            <td style="padding: 12px 16px; font-size: 13px; color: var(--muted);">
                                 {% if row[col.COLUMN_NAME] is none %}
                                     <span style="color: var(--muted); font-style: italic;">NULL</span>
-                                {% elif row[col.COLUMN_NAME] == True %}
+                                {% elif row[col.COLUMN_NAME] is sameas true %}
                                     <span style="color: var(--accent);">TRUE</span>
-                                {% elif row[col.COLUMN_NAME] == False %}
+                                {% elif row[col.COLUMN_NAME] is sameas false %}
                                     <span style="color: #fb7185;">FALSE</span>
                                 {% else %}
-                                    <span title="{{ row[col.COLUMN_NAME]|string|truncate(200) }}">
-                                        {{ row[col.COLUMN_NAME]|string|truncate(50) }}
-                                    </span>
+                                    {% set masked_value = row[col.COLUMN_NAME]|mask_sensitive(col.COLUMN_NAME) %}
+                                    {% set is_sensitive = col.COLUMN_NAME|is_sensitive %}
+                                    {% if is_sensitive %}
+                                        <span title="🔒 Sensitive data masked for security" style="color: var(--accent-gold);">
+                                            {{ masked_value }}
+                                        </span>
+                                    {% else %}
+                                        <span title="{{ row[col.COLUMN_NAME]|string }}">
+                                            {{ masked_value }}
+                                        </span>
+                                    {% endif %}
                                 {% endif %}
                             </td>
                             {% endfor %}
