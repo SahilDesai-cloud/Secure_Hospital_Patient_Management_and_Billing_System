@@ -1529,7 +1529,122 @@ def success():
     return render_template("success.html", success_message=message)
 
 
+def check_mysql_and_database():
+    """Check MySQL connection and database existence before starting the app"""
+    import mysql.connector
+    from mysql.connector import Error
+    
+    # Check if .env file exists
+    if not os.path.exists('.env'):
+        print("\n" + "="*60)
+        print("ERROR: .env file not found!")
+        print("="*60)
+        print("Please create a .env file in the project root with:")
+        print("  DB_USER=your_mysql_username")
+        print("  DB_PASS=your_mysql_password")
+        print("\nExample:")
+        print("  DB_USER=root")
+        print("  DB_PASS=mypassword")
+        print("\nFor detailed setup instructions, please refer to README.md")
+        print("="*60 + "\n")
+        return False
+    
+    # Get credentials from .env
+    db_user = os.environ.get("DB_USER")
+    db_pass = os.environ.get("DB_PASS")
+    
+    if not db_user or not db_pass:
+        print("\n" + "="*60)
+        print("ERROR: Database credentials not found in .env file!")
+        print("="*60)
+        print("Please ensure your .env file contains:")
+        print("  DB_USER=your_mysql_username")
+        print("  DB_PASS=your_mysql_password")
+        print("\nFor detailed setup instructions, please refer to README.md")
+        print("="*60 + "\n")
+        return False
+    
+    # Try to connect to MySQL server (without specifying database)
+    try:
+        print("\n" + "="*60)
+        print("Checking MySQL connection...")
+        print("="*60)
+        conn = mysql.connector.connect(
+            host="localhost",
+            user=db_user,
+            password=db_pass
+        )
+        print("✓ MySQL server is running and accessible")
+        cursor = conn.cursor()
+        
+        # Check if database exists
+        cursor.execute("SHOW DATABASES LIKE 'secure_hospital_db'")
+        db_exists = cursor.fetchone() is not None
+        
+        cursor.close()
+        conn.close()
+        
+        if not db_exists:
+            print("\n" + "="*60)
+            print("Database 'secure_hospital_db' not found!")
+            print("="*60)
+            print("The database needs to be set up before running the application.")
+            print("\nWould you like to run the database setup script now?")
+            print("This will create the database, tables, and insert dummy data.")
+            
+            response = input("\nRun hospital_db_setup.py? (y/n): ").strip().lower()
+            
+            if response in ['y', 'yes']:
+                print("\nRunning database setup...")
+                from hospital_db_setup import main as setup_main
+                try:
+                    setup_main()
+                    print("\n✓ Database setup completed successfully!")
+                    return True
+                except Exception as e:
+                    print(f"\n✗ Error during database setup: {e}")
+                    print("\nYou can manually run: python hospital_db_setup.py")
+                    print("For troubleshooting, please refer to README.md")
+                    return False
+            else:
+                print("\nPlease run 'python hospital_db_setup.py' manually to set up the database.")
+                print("For detailed setup instructions, please refer to README.md")
+                print("Exiting...")
+                return False
+        else:
+            print("✓ Database 'secure_hospital_db' exists")
+            print("="*60 + "\n")
+            return True
+            
+    except Error as e:
+        print("\n" + "="*60)
+        print("ERROR: Cannot connect to MySQL server!")
+        print("="*60)
+        print(f"Error: {e}")
+        print("\nPossible issues:")
+        print("  1. MySQL server is not running")
+        print("  2. Incorrect credentials in .env file")
+        print("  3. MySQL server is not installed")
+        print("\nTo install MySQL:")
+        print("  - Windows: Download from https://dev.mysql.com/downloads/mysql/")
+        print("  - Linux: sudo apt-get install mysql-server (Ubuntu/Debian)")
+        print("           sudo yum install mysql-server (CentOS/RHEL)")
+        print("  - macOS: brew install mysql")
+        print("\nAfter installing, ensure MySQL service is running and update your .env file.")
+        print("For detailed setup instructions and troubleshooting, please refer to README.md")
+        print("="*60 + "\n")
+        return False
+    except Exception as e:
+        print(f"\n✗ Unexpected error: {e}")
+        print("For troubleshooting, please refer to README.md")
+        return False
+
+
 if __name__ == "__main__":
+    # Check MySQL connection and database before starting
+    if not check_mysql_and_database():
+        exit(1)
+    
     # TLS/HTTPS Configuration:
     # - SSL context enabled when REQUIRE_HTTPS=1
     # - HTTPS enforcement and HSTS headers configured in enforce_security() and add_security_headers()

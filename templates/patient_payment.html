@@ -14,18 +14,18 @@
 {% else %}
 <div style="margin-bottom: 30px;">
     <h2 style="font-size: 1.2em; margin-bottom: 15px;">Your Bills</h2>
-    <div style="display: grid; gap: 15px;">
+    <div style="display: grid; gap: 15px; color: #1f2933;">
         {% for bill in bills %}
-        <div style="border: 1px solid #ddd; border-radius: 8px; padding: 15px; background: #fff;">
-            <div style="display: flex; justify-content: space-between; align-items: center;">
-                <div>
-                    <strong>Billing ID: #{{ bill.billing_id }}</strong><br>
-                    <span style="color: #666;">Total: ${{ "%.2f"|format(bill.total_amount) }}</span>
+        <div style="border: 1px solid #ddd; border-radius: 8px; padding: 15px; background: #fff; color: #0f172a !important;">
+            <div style="display: flex; justify-content: space-between; align-items: center; color: #0f172a !important;">
+                <div style="color: #0f172a !important;">
+                    <strong style="color: #0f172a !important;">Bill #{{ bill.billing_id }}</strong><br>
+                    <span style="color: #1f2937;">Total: ${{ "%.2f"|format(bill.total_amount) }}</span>
                     {% if bill.paid_amount %}
-                    <span style="color: #666;"> | Paid: ${{ "%.2f"|format(bill.paid_amount) }}</span>
+                    <span style="color: #1f2937;"> | Paid: ${{ "%.2f"|format(bill.paid_amount) }}</span>
                     {% endif %}
                     <br>
-                    <span style="color: #666;">Status: {{ bill.status }}</span>
+                    <span style="color: #1f2937;">Status: {{ bill.status }}</span>
                 </div>
                 <div>
                     <span class="status-pill {% if bill.status == 'Paid' %}success{% elif bill.status == 'Pending' %}warning{% else %}error{% endif %}">
@@ -88,9 +88,9 @@
 <div style="margin-top: 40px;">
     <h2 style="font-size: 1.2em; margin-bottom: 15px;">Payment History</h2>
     <div style="overflow-x: auto;">
-        <table style="width: 100%; border-collapse: collapse; background: #fff; border-radius: 8px; overflow: hidden;">
+        <table style="width: 100%; border-collapse: collapse; background: #fff; border-radius: 8px; overflow: hidden; color: #1f2933;">
             <thead>
-                <tr style="background: #f5f5f5;">
+                <tr style="background: #f5f5f5; color: #111827;">
                     <th style="padding: 12px; text-align: left; border-bottom: 2px solid #ddd;">Transaction ID</th>
                     <th style="padding: 12px; text-align: left; border-bottom: 2px solid #ddd;">Bill #</th>
                     <th style="padding: 12px; text-align: right; border-bottom: 2px solid #ddd;">Amount</th>
@@ -101,17 +101,17 @@
             </thead>
             <tbody>
                 {% for payment in payment_history %}
-                <tr style="border-bottom: 1px solid #eee;">
+                <tr style="border-bottom: 1px solid #eee; color: #1f2933;">
                     <td style="padding: 12px; font-family: monospace; font-size: 0.9em;">#{{ payment.payment_id }}</td>
                     <td style="padding: 12px;">#{{ payment.billing_id }}</td>
                     <td style="padding: 12px; text-align: right; font-weight: 500;">${{ "%.2f"|format(payment.amount) }}</td>
-                    <td style="padding: 12px; color: #666;">{{ payment.paid_at.strftime('%Y-%m-%d %H:%M') if payment.paid_at else 'N/A' }}</td>
+                    <td style="padding: 12px; color: #374151;">{{ payment.paid_at.strftime('%Y-%m-%d %H:%M') if payment.paid_at else 'N/A' }}</td>
                     <td style="padding: 12px;">
                         <span class="status-pill {% if payment.status == 'Posted' %}success{% else %}warning{% endif %}">
                             {{ payment.status }}
                         </span>
                     </td>
-                    <td style="padding: 12px; color: #666; font-size: 0.9em;">
+                    <td style="padding: 12px; color: #374151; font-size: 0.9em;">
                         {% if payment.note %}
                         {{ payment.note[:50] }}{% if payment.note|length > 50 %}...{% endif %}
                         {% else %}
